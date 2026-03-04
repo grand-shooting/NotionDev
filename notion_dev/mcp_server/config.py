@@ -6,6 +6,7 @@ LAST_SYNC: 2025-12-31
 """
 
 import os
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, List
@@ -199,11 +200,15 @@ class ServerConfig:
         errors = []
 
         if self.is_remote:
-            # Remote mode always requires service tokens
+            # Remote mode always requires Notion token (core feature)
             if not self.service_notion_token:
                 errors.append("SERVICE_NOTION_TOKEN is required for remote mode")
             if not self.service_asana_token:
-                errors.append("SERVICE_ASANA_TOKEN is required for remote mode")
+                print(
+                    "⚠ Asana not configured. Asana features (tickets, projects) will be unavailable. "
+                    "Asana configuration is required for the grand-shooting workflow.",
+                    file=sys.stderr,
+                )
 
             # OAuth configuration only required if auth is enabled
             if self.auth_enabled:

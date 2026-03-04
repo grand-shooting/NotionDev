@@ -173,66 +173,76 @@ def login(ctx, notion_token, notion_modules_db, notion_features_db,
             if not Confirm.ask("Continue anyway?", default=False):
                 raise click.Abort()
 
-    # Collect Asana configuration
-    console.print("\n[bold cyan]== Asana Configuration ==[/bold cyan]")
+    # Collect Asana configuration (optional)
+    console.print("\n[bold cyan]== Asana Configuration (Optional) ==[/bold cyan]")
     console.print("Get your personal access token at: https://app.asana.com/0/my-apps")
+    console.print("[dim]Asana is optional — skip to use only Notion documentation features[/dim]")
+
+    skip_asana = False
 
     if not asana_token:
         if yes:
-            console.print("[red]Error: --asana-token is required in non-interactive mode[/red]")
-            raise click.Abort()
-        asana_token = Prompt.ask("Asana Personal Access Token", password=True)
+            # Non-interactive: skip Asana silently if token not provided
+            skip_asana = True
+        else:
+            if not Confirm.ask("Configure Asana integration?", default=True):
+                skip_asana = True
+            else:
+                asana_token = Prompt.ask("Asana Personal Access Token", password=True)
 
-    # If workspace/user not provided, try to auto-detect
-    if not asana_workspace or not asana_user:
-        console.print("\n[dim]Detecting Asana workspace and user...[/dim]")
-        try:
-            temp_client = AsanaClient(asana_token, "temp", "temp")
-            response = temp_client._make_request("GET", "users/me")
-            user_data = response.get('data', {})
-            detected_user = user_data.get('gid')
-            detected_user_name = user_data.get('name')
+    if not skip_asana and asana_token:
+        # If workspace/user not provided, try to auto-detect
+        if not asana_workspace or not asana_user:
+            console.print("\n[dim]Detecting Asana workspace and user...[/dim]")
+            try:
+                temp_client = AsanaClient(asana_token, "temp", "temp")
+                response = temp_client._make_request("GET", "users/me")
+                user_data = response.get('data', {})
+                detected_user = user_data.get('gid')
+                detected_user_name = user_data.get('name')
 
-            workspaces = user_data.get('workspaces', [])
-            if workspaces:
-                if len(workspaces) == 1:
-                    detected_workspace = workspaces[0]['gid']
-                    detected_workspace_name = workspaces[0]['name']
-                    console.print(f"[green]✓ Found user: {detected_user_name} ({detected_user})[/green]")
-                    console.print(f"[green]✓ Found workspace: {detected_workspace_name} ({detected_workspace})[/green]")
-                else:
-                    console.print(f"[green]✓ Found user: {detected_user_name} ({detected_user})[/green]")
-                    console.print("\n[yellow]Multiple workspaces found:[/yellow]")
-                    for i, ws in enumerate(workspaces, 1):
-                        console.print(f"  {i}. {ws['name']} ({ws['gid']})")
-                    if not yes:
-                        choice = Prompt.ask("Select workspace number", default="1")
-                        detected_workspace = workspaces[int(choice) - 1]['gid']
-                        detected_workspace_name = workspaces[int(choice) - 1]['name']
-                    else:
+                workspaces = user_data.get('workspaces', [])
+                if workspaces:
+                    if len(workspaces) == 1:
                         detected_workspace = workspaces[0]['gid']
                         detected_workspace_name = workspaces[0]['name']
+                        console.print(f"[green]✓ Found user: {detected_user_name} ({detected_user})[/green]")
+                        console.print(f"[green]✓ Found workspace: {detected_workspace_name} ({detected_workspace})[/green]")
+                    else:
+                        console.print(f"[green]✓ Found user: {detected_user_name} ({detected_user})[/green]")
+                        console.print("\n[yellow]Multiple workspaces found:[/yellow]")
+                        for i, ws in enumerate(workspaces, 1):
+                            console.print(f"  {i}. {ws['name']} ({ws['gid']})")
+                        if not yes:
+                            choice = Prompt.ask("Select workspace number", default="1")
+                            detected_workspace = workspaces[int(choice) - 1]['gid']
+                            detected_workspace_name = workspaces[int(choice) - 1]['name']
+                        else:
+                            detected_workspace = workspaces[0]['gid']
+                            detected_workspace_name = workspaces[0]['name']
 
-                if not asana_workspace:
-                    asana_workspace = detected_workspace
-                if not asana_user:
-                    asana_user = detected_user
-        except Exception as e:
-            console.print(f"[yellow]Could not auto-detect: {e}[/yellow]")
+                    if not asana_workspace:
+                        asana_workspace = detected_workspace
+                    if not asana_user:
+                        asana_user = detected_user
+            except Exception as e:
+                console.print(f"[yellow]Could not auto-detect: {e}[/yellow]")
 
-    if not asana_workspace:
-        if yes:
-            console.print("[red]Error: --asana-workspace is required in non-interactive mode[/red]")
-            raise click.Abort()
-        asana_workspace = Prompt.ask("Asana Workspace GID")
+        if not asana_workspace:
+            if yes:
+                console.print("[yellow]⚠ Asana workspace not provided, skipping Asana configuration[/yellow]")
+                skip_asana = True
+            else:
+                asana_workspace = Prompt.ask("Asana Workspace GID")
 
-    if not asana_user:
-        if yes:
-            console.print("[red]Error: --asana-user is required in non-interactive mode[/red]")
-            raise click.Abort()
-        asana_user = Prompt.ask("Asana User GID")
+        if not skip_asana and not asana_user:
+            if yes:
+                console.print("[yellow]⚠ Asana user not provided, skipping Asana configuration[/yellow]")
+                skip_asana = True
+            else:
+                asana_user = Prompt.ask("Asana User GID")
 
-    if not asana_portfolio and not yes:
+    if not skip_asana and not asana_portfolio and not yes:
         console.print("\n[dim]Portfolio filtering is optional. Leave empty to see all tasks.[/dim]")
         asana_portfolio = Prompt.ask("Asana Portfolio GID (optional)", default="")
         if not asana_portfolio:
@@ -272,23 +282,27 @@ def login(ctx, notion_token, notion_modules_db, notion_features_db,
                     raise click.Abort()
                 github_token = None
 
-    # Validate Asana connection
-    console.print("\n[dim]Testing Asana connection...[/dim]")
-    asana_client = AsanaClient(asana_token, asana_workspace, asana_user, asana_portfolio)
-    asana_result = asana_client.test_connection()
+    # Validate Asana connection (only if configured)
+    if not skip_asana:
+        console.print("\n[dim]Testing Asana connection...[/dim]")
+        asana_client = AsanaClient(asana_token, asana_workspace, asana_user, asana_portfolio)
+        asana_result = asana_client.test_connection()
 
-    if asana_result["success"]:
-        console.print(f"[green]✓ Asana connected as: {asana_result['user']}[/green]")
-        console.print(f"[green]✓ Workspace: {asana_result['workspace']}[/green]")
-        if asana_result["portfolio"]:
-            console.print(f"[green]✓ Portfolio: {asana_result['portfolio']}[/green]")
+        if asana_result["success"]:
+            console.print(f"[green]✓ Asana connected as: {asana_result['user']}[/green]")
+            console.print(f"[green]✓ Workspace: {asana_result['workspace']}[/green]")
+            if asana_result["portfolio"]:
+                console.print(f"[green]✓ Portfolio: {asana_result['portfolio']}[/green]")
+        else:
+            console.print("[red]✗ Asana connection failed:[/red]")
+            for error in asana_result["errors"]:
+                console.print(f"[red]  - {error}[/red]")
+            if not yes:
+                if not Confirm.ask("Continue anyway?", default=False):
+                    raise click.Abort()
     else:
-        console.print("[red]✗ Asana connection failed:[/red]")
-        for error in asana_result["errors"]:
-            console.print(f"[red]  - {error}[/red]")
-        if not yes:
-            if not Confirm.ask("Continue anyway?", default=False):
-                raise click.Abort()
+        console.print("\n[yellow]⚠ Asana not configured. Asana features (tickets, projects) will be unavailable. "
+                      "Asana configuration is required for the grand-shooting workflow.[/yellow]")
 
     # Build config
     config_data = {
@@ -296,11 +310,6 @@ def login(ctx, notion_token, notion_modules_db, notion_features_db,
             'token': notion_token,
             'database_modules_id': notion_modules_db,
             'database_features_id': notion_features_db
-        },
-        'asana': {
-            'access_token': asana_token,
-            'workspace_gid': asana_workspace,
-            'user_gid': asana_user
         },
         'ai': {
             'context_max_length': 32000,
@@ -316,8 +325,14 @@ def login(ctx, notion_token, notion_modules_db, notion_features_db,
         }
     }
 
-    if asana_portfolio:
-        config_data['asana']['portfolio_gid'] = asana_portfolio
+    if not skip_asana:
+        config_data['asana'] = {
+            'access_token': asana_token,
+            'workspace_gid': asana_workspace,
+            'user_gid': asana_user
+        }
+        if asana_portfolio:
+            config_data['asana']['portfolio_gid'] = asana_portfolio
 
     if github_token:
         config_data['github'] = {

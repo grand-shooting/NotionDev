@@ -1,9 +1,17 @@
 # notion_dev/core/config.py - Ajout du support portfolio
 import yaml
 import os
+import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
+
+ASANA_WARNING = (
+    "⚠ Asana not configured. Asana features (tickets, projects) will be unavailable. "
+    "Asana configuration is required for the grand-shooting workflow."
+)
 
 @dataclass
 class NotionConfig:
@@ -13,11 +21,16 @@ class NotionConfig:
 
 @dataclass
 class AsanaConfig:
-    access_token: str
-    workspace_gid: str
-    user_gid: str
+    access_token: str = ""
+    workspace_gid: str = ""
+    user_gid: str = ""
     portfolio_gid: Optional[str] = None  # ← Nouveau champ optionnel
     default_project_gid: Optional[str] = None  # Project to use when creating tickets
+
+    @property
+    def is_configured(self) -> bool:
+        """Check if Asana has minimal configuration to work."""
+        return bool(self.access_token and self.workspace_gid)
 
 @dataclass
 class AIConfig:
@@ -70,15 +83,18 @@ class Config:
         # Configs obligatoires
         notion_config = NotionConfig(**data['notion'])
         
-        # Asana config avec portfolio optionnel
-        asana_data = data['asana']
-        asana_config = AsanaConfig(
-            access_token=asana_data['access_token'],
-            workspace_gid=asana_data['workspace_gid'],
-            user_gid=asana_data['user_gid'],
-            portfolio_gid=asana_data.get('portfolio_gid'),  # Optionnel
-            default_project_gid=asana_data.get('default_project_gid')  # Optionnel
-        )
+        # Asana config - optional (teams may use Linear or other tools)
+        asana_data = data.get('asana', {})
+        if asana_data:
+            asana_config = AsanaConfig(
+                access_token=asana_data.get('access_token', ''),
+                workspace_gid=asana_data.get('workspace_gid', ''),
+                user_gid=asana_data.get('user_gid', ''),
+                portfolio_gid=asana_data.get('portfolio_gid'),
+                default_project_gid=asana_data.get('default_project_gid'),
+            )
+        else:
+            asana_config = AsanaConfig()
         
         # Configs optionnelles avec valeurs par défaut
         ai_data = data.get('ai', {})
@@ -142,12 +158,16 @@ class Config:
         """Valide la configuration"""
         required_fields = [
             self.notion.token,
-            self.notion.database_modules_id, 
+            self.notion.database_modules_id,
             self.notion.database_features_id,
-            self.asana.access_token,
-            self.asana.workspace_gid
         ]
-        return all(field for field in required_fields)
+        if not all(field for field in required_fields):
+            return False
+
+        if not self.asana.is_configured:
+            logger.warning(ASANA_WARNING)
+
+        return True
     
     def get_project_info(self) -> Dict[str, str]:
         """Retourne les infos du projet courant"""

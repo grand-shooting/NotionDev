@@ -109,7 +109,7 @@ class TestServerConfig:
         assert config.is_local is True
 
     def test_config_validation_remote_mode_with_auth(self):
-        """Remote mode with auth should require OAuth and service tokens."""
+        """Remote mode with auth should require OAuth and Notion token."""
         from notion_dev.mcp_server.config import ServerConfig, TransportMode
 
         # Remote mode with auth but without required tokens should fail validation
@@ -125,12 +125,14 @@ class TestServerConfig:
         assert any("GOOGLE_CLIENT_ID" in e for e in errors)
         assert any("JWT_SECRET" in e for e in errors)
         assert any("SERVICE_NOTION_TOKEN" in e for e in errors)
+        # SERVICE_ASANA_TOKEN is now a warning, not an error
+        assert not any("SERVICE_ASANA_TOKEN" in e for e in errors)
 
     def test_config_validation_remote_mode_no_auth(self):
-        """Remote mode without auth should require service tokens and default user."""
+        """Remote mode without auth should require Notion token and default user."""
         from notion_dev.mcp_server.config import ServerConfig, TransportMode
 
-        # Remote mode without auth requires default_user_email and service tokens
+        # Remote mode without auth requires default_user_email and Notion token
         config = ServerConfig(
             transport=TransportMode.SSE,
             auth_enabled=False,
@@ -142,6 +144,8 @@ class TestServerConfig:
         assert len(errors) > 0
         assert any("DEFAULT_USER_EMAIL" in e for e in errors)
         assert any("SERVICE_NOTION_TOKEN" in e for e in errors)
+        # SERVICE_ASANA_TOKEN is now a warning, not an error
+        assert not any("SERVICE_ASANA_TOKEN" in e for e in errors)
 
     def test_config_validation_remote_mode_no_auth_valid(self):
         """Remote mode without auth should pass with service tokens and default user."""

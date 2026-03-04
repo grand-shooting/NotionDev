@@ -74,8 +74,13 @@ class RemoteBackend:
 
     @property
     def is_configured(self) -> bool:
-        """Check if the remote backend is properly configured."""
-        return bool(self._asana_token and self._notion_token)
+        """Check if the remote backend is properly configured (Notion is core)."""
+        return bool(self._notion_token)
+
+    @property
+    def is_asana_configured(self) -> bool:
+        """Check if Asana is configured."""
+        return bool(self._asana_token)
 
     @property
     def asana_client(self):
@@ -135,15 +140,18 @@ class RemoteBackend:
         # Create new user and try to resolve Asana identity
         user = RemoteUser(email=email, name=name)
 
-        try:
-            asana_user = self.asana_client.find_user_by_email(email)
-            if asana_user:
-                user.asana_user_gid = asana_user.get('gid')
-                logger.info(f"Resolved Asana user: {email} -> {user.asana_user_gid}")
-            else:
-                logger.warning(f"Could not find Asana user for email: {email}")
-        except Exception as e:
-            logger.error(f"Error resolving Asana user for {email}: {e}")
+        if self.is_asana_configured:
+            try:
+                asana_user = self.asana_client.find_user_by_email(email)
+                if asana_user:
+                    user.asana_user_gid = asana_user.get('gid')
+                    logger.info(f"Resolved Asana user: {email} -> {user.asana_user_gid}")
+                else:
+                    logger.warning(f"Could not find Asana user for email: {email}")
+            except Exception as e:
+                logger.error(f"Error resolving Asana user for {email}: {e}")
+        else:
+            logger.info(f"Asana not configured, skipping user resolution for: {email}")
 
         # Cache for future requests and set in current context
         self._user_cache[email] = user
@@ -369,7 +377,7 @@ class RemoteBackend:
             }
 
         # Test connections
-        if self.is_configured:
+        if self.is_asana_configured:
             try:
                 connection_test = self.asana_client.test_connection()
                 info["asana"] = {
@@ -379,6 +387,8 @@ class RemoteBackend:
                 }
             except Exception as e:
                 info["asana"] = {"connected": False, "error": str(e)}
+        else:
+            info["asana"] = {"connected": False, "error": "Asana not configured"}
 
         return info
 
