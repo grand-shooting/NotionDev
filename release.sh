@@ -20,7 +20,7 @@ echo "🔄 Updating version to $VERSION..."
 # Update version in all files
 sed -i '' "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" notion_dev/__init__.py
 sed -i '' "s/version=\".*\"/version=\"$VERSION\"/" setup.py
-sed -i '' "s/version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
 
 # Show changes
 echo "📝 Version changes:"
@@ -46,4 +46,4 @@ git push origin "v$VERSION"
 
 echo "✅ Version $VERSION tagged and pushed!"
 echo "📦 Now create a release on GitHub to trigger PyPI publishing:"
-echo "   https://github.com/phumblot-gs/NotionDev/releases/new?tag=v$VERSION"
+echo "   https://github.com/grands-shooting/NotionDev/releases/new?tag=v$VERSION"

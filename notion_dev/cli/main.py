@@ -1293,9 +1293,9 @@ def list_modules(ctx, output_json):
 
     if not output_json:
         with console.status("[bold green]Fetching modules..."):
-            modules = notion_client.get_all_modules()
+            modules = notion_client.list_modules()
     else:
-        modules = notion_client.get_all_modules()
+        modules = notion_client.list_modules()
 
     if output_json:
         import json as json_module

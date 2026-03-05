@@ -294,6 +294,16 @@ class NotionClient:
             logger.error(f"Error retrieving module {module_id}: {e}")
             return None
     
+    def _get_page_properties(self, page_id: str) -> Optional[Dict]:
+        """Fetch full properties for a single page."""
+        url = f"https://api.notion.com/v1/pages/{page_id}"
+        try:
+            response = self._make_request("GET", url)
+            return response.get('properties')
+        except Exception as e:
+            logger.error(f"Error fetching page {page_id}: {e}")
+            return None
+
     def _get_property_value(self, properties: Dict, prop_name: str, prop_type: str) -> Any:
         """Extrait la valeur d'une propriété Notion selon son type"""
         if prop_name not in properties:
@@ -301,58 +311,100 @@ class NotionClient:
 
         prop = properties[prop_name]
 
-        if prop_type == 'title':
-            return ''.join([t['plain_text'] for t in prop['title']])
-        elif prop_type == 'rich_text':
-            return ''.join([t['plain_text'] for t in prop['rich_text']])
-        elif prop_type == 'select':
-            return prop['select']['name'] if prop['select'] else None
-        elif prop_type == 'multi_select':
-            return [item['name'] for item in prop['multi_select']]
-        elif prop_type == 'relation':
-            return [item['id'] for item in prop['relation']]
-        elif prop_type == 'url':
-            return prop.get('url')
-        else:
-            return prop.get(prop_type)
+        try:
+            if prop_type == 'title':
+                return ''.join([t['plain_text'] for t in prop['title']])
+            elif prop_type == 'rich_text':
+                return ''.join([t['plain_text'] for t in prop['rich_text']])
+            elif prop_type == 'select':
+                return prop['select']['name'] if prop['select'] else None
+            elif prop_type == 'multi_select':
+                return [item['name'] for item in prop['multi_select']]
+            elif prop_type == 'relation':
+                return [item['id'] for item in prop['relation']]
+            elif prop_type == 'url':
+                return prop.get('url')
+            else:
+                return prop.get(prop_type)
+        except (KeyError, TypeError):
+            return None
     
     def search_features(self, query: str = "") -> List[Feature]:
         """Recherche des features dans Notion"""
         url = f"https://api.notion.com/v1/databases/{self.features_db_id}/query"
-        
-        payload = {}
+
         if query:
-            payload["filter"] = {
-                "or": [
-                    {
-                        "property": "name",
-                        "title": {
-                            "contains": query
+            payload = {
+                "filter": {
+                    "or": [
+                        {
+                            "property": "name",
+                            "title": {
+                                "contains": query
+                            }
+                        },
+                        {
+                            "property": "code",
+                            "rich_text": {
+                                "contains": query
+                            }
                         }
-                    },
-                    {
-                        "property": "code", 
-                        "rich_text": {
-                            "contains": query
-                        }
+                    ]
+                }
+            }
+        else:
+            # Filter to only return features that have a code
+            payload = {
+                "filter": {
+                    "property": "code",
+                    "rich_text": {
+                        "is_not_empty": True
                     }
-                ]
+                }
             }
         
         try:
             response = self._make_request("POST", url, json=payload)
             features = []
-            
+            module_cache = {}
+
             for result in response.get('results', []):
                 properties = result['properties']
                 code = self._get_property_value(properties, 'code', 'rich_text')
-                if code:
-                    feature = self.get_feature(code)
-                    if feature:
-                        features.append(feature)
-                        
+                if not code:
+                    code = self._get_property_value(properties, 'code', 'title')
+                if not code:
+                    continue
+
+                name = self._get_property_value(properties, 'name', 'title')
+                status = self._get_property_value(properties, 'status', 'select')
+                module_relation = self._get_property_value(properties, 'module', 'relation')
+                plan = self._get_property_value(properties, 'plan', 'multi_select')
+                user_rights = self._get_property_value(properties, 'user_rights', 'multi_select')
+
+                module = None
+                module_name = "Unknown"
+                if module_relation:
+                    mod_id = module_relation[0]
+                    if mod_id not in module_cache:
+                        module_cache[mod_id] = self.get_module_by_id(mod_id)
+                    module = module_cache[mod_id]
+                    if module:
+                        module_name = module.name
+
+                features.append(Feature(
+                    code=code,
+                    name=name or "",
+                    status=status,
+                    module_name=module_name,
+                    plan=plan or [],
+                    user_rights=user_rights or [],
+                    notion_id=result['id'],
+                    module=module
+                ))
+
             return features
-            
+
         except Exception as e:
             logger.error(f"Error searching features: {e}")
             return []
@@ -1170,10 +1222,34 @@ class NotionClient:
             for result in response.get('results', []):
                 properties = result['properties']
                 code = self._get_property_value(properties, 'code', 'rich_text')
-                if code:
-                    feature = self.get_feature(code)
-                    if feature:
-                        features.append(feature)
+                if not code:
+                    code = self._get_property_value(properties, 'code', 'title')
+                if not code:
+                    continue
+
+                name = self._get_property_value(properties, 'name', 'title')
+                status = self._get_property_value(properties, 'status', 'select')
+                module_relation = self._get_property_value(properties, 'module', 'relation')
+                plan = self._get_property_value(properties, 'plan', 'multi_select')
+                user_rights = self._get_property_value(properties, 'user_rights', 'multi_select')
+
+                module = None
+                module_name = "Unknown"
+                if module_relation:
+                    module = self.get_module_by_id(module_relation[0])
+                    if module:
+                        module_name = module.name
+
+                features.append(Feature(
+                    code=code,
+                    name=name or "",
+                    status=status,
+                    module_name=module_name,
+                    plan=plan or [],
+                    user_rights=user_rights or [],
+                    notion_id=result['id'],
+                    module=module
+                ))
 
             return features
 
