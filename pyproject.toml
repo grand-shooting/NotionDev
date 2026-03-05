@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "notion-dev"
-version = "2.0.13"
+version = "2.1.0"
 description = "Integration tool for Notion, Asana and Git workflows with MCP server support"
 readme = "README.md"
 authors = [
@@ -55,8 +55,8 @@ notion-dev-mcp = "notion_dev.mcp_server.server:main"
 [project.urls]
 Homepage = "https://github.com/yourusername/notion-dev"
 Documentation = "https://notion-dev.readthedocs.io"
-Repository = "https://github.com/yourusername/notion-dev"
-Issues = "https://github.com/yourusername/notion-dev/issues"
+Repository = "https://github.com/grand-shooting/NotionDev"
+Issues = "https://github.com/grand-shooting/NotionDev/issues"
 
 [tool.setuptools.packages.find]
 include = ["notion_dev*"]
