@@ -15,7 +15,7 @@ NotionDev works in a multi-project environment: you can have multiple git projec
 [![PyPI version](https://badge.fury.io/py/notion-dev.svg)](https://pypi.org/project/notion-dev/)
 [![Python](https://img.shields.io/badge/python-3.10+-green.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://github.com/phumblot-gs/NotionDev/actions/workflows/tests.yml/badge.svg)](https://github.com/phumblot-gs/NotionDev/actions/workflows/tests.yml)
+[![Tests](https://github.com/grand-shooting/NotionDev/actions/workflows/tests.yml/badge.svg)](https://github.com/grand-shooting/NotionDev/actions/workflows/tests.yml)
 
 ## ✨ Features
 
@@ -104,7 +104,7 @@ notion-dev --version
 
 ```bash
 # Clone the repository
-git clone https://github.com/phumblot-gs/NotionDev.git
+git clone https://github.com/grand-shooting/NotionDev.git
 cd NotionDev
 
 # Install in development mode
